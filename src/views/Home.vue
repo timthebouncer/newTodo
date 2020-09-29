@@ -27,7 +27,7 @@
           <el-button size="small" type="primary">新增</el-button>
         </template>
 
-        <input type="text" ref="autofocus" class="input" v-model="todo" @keydown.enter="submitHandler">
+        <input type="text" ref="autofocus" class="input" v-model="todo" @blur="cancel" @keydown.enter="submitHandler">
       </el-popover>
     </div>
     <div class="menu" style="width: 100%;">
@@ -65,9 +65,8 @@
                       :visible.sync="dialogVisible"
                       width="40%"
                       :before-close="handleClose">
-
                   <div>
-                     <div style="width: 100%">Name:<input v-model="editDialog" type="text"></div>
+                     <div>Name:<input v-model="editDialog" type="text" @blur="cancel"></div>
                       <div>Description:<input v-model="editdescription" type="text" style="height: 50px"></div>
                   </div>
                   <span slot="footer" class="dialog-footer">
@@ -144,10 +143,20 @@ export default {
       })
     },
     deleteHandler(index){
+        
         if(this.todo !== null){
           if(confirm(`確定刪除?`)){
-
+            axios.delete('http://localhost:3000/todos/')
             this.result.splice(index,1)
+            .then(()=>{
+                  axios.get('http://localhost:3000/todos')
+                  .then((res)=>{
+                    this.result = res.data
+                  })
+            }).catch((err)=>{
+              console.log(err)
+            })
+            
           }
 
         }
@@ -169,7 +178,7 @@ export default {
           }).catch((err)=>{
               console.log(err)
           })
-
+          
       }
 
       this.$nextTick(() => {
@@ -179,6 +188,11 @@ export default {
     },
     cancel(){
       this.edit = null
+      this.todo = null
+      if(this.editDialog != null){
+        return this.editDialog = null
+      }
+      this.editdescription = null
     },
     complete(selection,row){
       if(row.status === "third"){
