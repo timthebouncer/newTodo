@@ -1,71 +1,209 @@
 <template>
   <div class="container">
-    <div class="table">
-      <el-tabs type="card">
-        <el-tab-pane label="未完成" name="first"></el-tab-pane>
-        <el-tab-pane label="進行中" name="second"></el-tab-pane>
-        <el-tab-pane label="已完成" name="third"></el-tab-pane>
-        <el-input v-model="todo"></el-input>
-        <el-button @click="submitHandler" type="success">新增</el-button>
-        
-      </el-tabs>
+    <el-tabs v-model="status" style="width: 100%;">
+      <el-tab-pane label="未完成" name="first"></el-tab-pane>
+      <el-tab-pane label="進行中" name="second"></el-tab-pane>
+      <el-tab-pane label="已完成" name="third"></el-tab-pane>
+    </el-tabs>
+    <div style="display: flex; justify-content: space-between;width: 100%;">
+
+<!--      <el-input-->
+<!--          size="small" placeholder="請輸入待辦事項名稱" style="width: 240px;">-->
+<!--        <el-button slot="append" icon="el-icon-search"></el-button>-->
+<!--      </el-input>-->
+      <div>
+        <input type="text" class="input" v-model="search" @keydown.enter="searchHandler"/>
+        <el-button slot="append" icon="el-icon-search" size="small"></el-button>
+      </div>
+
+      <el-popover
+              placement="bottom-end"
+              title="新增待辦事項"
+              width="200"
+              trigger="click"
+              @after-enter="focusAdd"
+      >
+        <template slot="reference">
+          <el-button size="small" type="primary">新增</el-button>
+        </template>
+
+        <input type="text" ref="autofocus" class="input" v-model="todo" @keydown.enter="submitHandler">
+      </el-popover>
     </div>
-    <div class="menu">
-      <el-table :data="todos" style="width: 100%">
+    <div class="menu" style="width: 100%;">
+      <el-table :data="filterStatus" style="width: 100%" @select="complete">
         <el-table-column type="selection"> </el-table-column>
-        
+
         <el-table-column
-          prop="id"
-          label="id"
+          prop=""
+          label=""
           width="40px"
           show-overflow-tooltip
         >
         </el-table-column>
-        
-        <el-table-column prop="name" label="name" width="300px" align="center">
-        </el-table-column>
-        <el-table-column>
-            <el-button @click="deleteHandler(index)" type="success">刪除</el-button>
+
+        <el-table-column label="名稱">
+          <template slot-scope="scope">
+            <div v-if="edit !== scope.$index">{{scope.row.name}}</div>
+            <div v-else>
+              <el-input v-model="scope.row.name" @blur="cancel" ref="autofocus"></el-input>
+            </div>
+          </template>
         </el-table-column>
 
-      </el-table>
+
+          <el-table-column width="200px">
+          <template slot-scope="scope">
+
+            <el-button @click="startHandler(scope.$index,scope.row)" size="small" icon="el-icon-caret-right"></el-button>
+
+
+              <el-button type="text" size="mini" @click="dialogVisible = true">編輯</el-button>
+
+              <el-dialog
+                      title="編輯代辦事項"
+                      :visible.sync="dialogVisible"
+                      width="40%"
+                      :before-close="handleClose">
+
+                  <div>
+                     <div style="width: 100%">Name:<input v-model="editDialog" type="text"></div>
+                      <div>Description:<input v-model="editdescription" type="text" style="height: 50px"></div>
+                  </div>
+                  <span slot="footer" class="dialog-footer">
+            <el-button @click="dialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="editHandler(scope.$index,scope.row.name)">確定</el-button>
+                  </span>
+
+              </el-dialog>
+
+            <el-button
+                      @click="deleteHandler(scope.$index,result)" type="primary" size="mini">刪除
+            </el-button>
+
+          </template>
+          </el-table-column>
+
+         </el-table>
     </div>
   </div>
 </template>
 
 <script>
+    import axios from 'axios'
 export default {
   data() {
     return {
-      todos: [
-        {
-          id: 1,
-          name: "",
-          status: 0,
-        },
-      ],
+      status:"first",
       todo: "",
-      nextID: 2,
+      nextID: 1,
       checked: true,
+      edit:null,
+      search:'',
+      match:'',
+      result:[],
+      editDialog:'',
+      editdescription:'',
+        dialogVisible: false
     };
+  },
+    created() {
+        axios.get('http://localhost:3000/todos')
+        .then((res)=>{
+            this.result = res.data
+        }).catch((err)=>{
+            console.log(err)
+        })
+      },
+    computed:{
+    filterStatus(){
+      return this.result.filter(item=>{
+        return  item.status === this.status && item.name.toLowerCase().includes(this.match.toLowerCase())
+      })
+    }
   },
   methods: {
     submitHandler() {
-      if (this.todo) {
-        this.todos.push({
-          id: this.nextID++,
-          name: this.todo,
-          status: 0,
-        });
+        let name = this.todo
+        if(name) {
+          axios.post('http://localhost:3000/todos',{
+              name:this.todo,status:"first"
+          })
+          .then(()=>{
+              axios.get('http://localhost:3000/todos')
+              .then((res)=>{
+                  this.result = res.data
+              })
+          }).catch((err)=>{
+              console.log(err)
+          })
       }
       this.todo = "";
+      this.$nextTick(() => {
+        this.$refs.autofocus.focus()
+      })
     },
     deleteHandler(index){
         if(this.todo !== null){
-            this.todos.splice(index,1)
-        }
+          if(confirm(`確定刪除?`)){
 
-    }
+            this.result.splice(index,1)
+          }
+
+        }
+    },
+    editHandler(){
+      // this.edit = index
+      this.dialogVisible = false
+      if(this.editDialog || this.editdescription){
+          axios.put('http://localhost:3000/todos/1',{
+              name:this.editDialog,
+              description:this.editdescription,
+              status:"first"
+          })
+          .then(()=>{
+              axios.get('http://localhost:3000/todos')
+              .then((res)=>{
+                  this.result = res.data
+              })
+          }).catch((err)=>{
+              console.log(err)
+          })
+
+      }
+
+      this.$nextTick(() => {
+        this.$refs.autofocus.focus()
+      })
+
+    },
+    cancel(){
+      this.edit = null
+    },
+    complete(selection,row){
+      if(row.status === "third"){
+        row.status = "first"
+      }
+    else{
+      row.status = "third"
+        this.checked = false
+      }
+    },
+    startHandler(selection,row){
+      row.status = "second"
+    },
+    focusAdd(){
+      this.$nextTick(() => {
+        this.$refs.autofocus.focus()
+      })
+    },
+    searchHandler(){
+      console.log(1)
+     this.match = this.search
+    },
+      // dialogVisible(){
+      //
+      // }
   },
 };
 </script>
@@ -74,17 +212,33 @@ export default {
 .container {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  width: 768px;
+  margin: 0 auto;
 }
-    .menu {
-    margin-top: 30px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, .12), 0 0 6px rgba(0, 0, 0, .04)
-    }
-    
-
-
-    .el-button.el-button--success{
-        margin-top: 10px;
-        }
+.menu {
+  margin-top: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .12), 0 0 6px rgba(0, 0, 0, .04)
+}
+  .input{
+    -webkit-appearance: none;
+    background-color: #FFF;
+    background-image: none;
+    border-radius: 4px;
+    border: 1px solid #DCDFE6;
+    box-sizing: border-box;
+    color: #606266;
+    display: inline-block;
+    font-size: inherit;
+    height: 32px;
+    line-height: 32px;
+    outline: 0;
+    padding: 0 15px;
+    transition: border-color .2s cubic-bezier(.645,.045,.355,1);
+    width: 100%;
+  }
+  .input:focus {
+    border-color: #409EFF;
+    outline: 0;
+  }
 </style>
