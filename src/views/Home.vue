@@ -7,12 +7,8 @@
     </el-tabs>
     <div style="display: flex; justify-content: space-between;width: 100%;">
 
-<!--      <el-input-->
-<!--          size="small" placeholder="請輸入待辦事項名稱" style="width: 240px;">-->
-<!--        <el-button slot="append" icon="el-icon-search"></el-button>-->
-<!--      </el-input>-->
-      <div>
-        <input type="text" class="input" v-model="search" @keydown.enter="searchHandler"/>
+      <div style="display: flex;">
+        <input type="text" class="input" v-model="search" @keydown.enter="searchHandler" >
         <el-button slot="append" icon="el-icon-search" size="small"></el-button>
       </div>
 
@@ -37,7 +33,7 @@
         <el-table-column
           prop=""
           label=""
-          width="40px"
+          width="100px"
           show-overflow-tooltip
         >
         </el-table-column>
@@ -58,23 +54,7 @@
             <el-button @click="startHandler(scope.$index,scope.row)" size="small" icon="el-icon-caret-right"></el-button>
 
 
-              <el-button type="text" size="mini" @click="dialogVisible = true">編輯</el-button>
-
-              <el-dialog
-                      title="編輯代辦事項"
-                      :visible.sync="dialogVisible"
-                      width="40%"
-                      :before-close="handleClose">
-                  <div>
-                     <div>Name:<input v-model="editDialog" type="text" @blur="cancel"></div>
-                      <div>Description:<input v-model="editdescription" type="text" style="height: 50px"></div>
-                  </div>
-                  <span slot="footer" class="dialog-footer">
-            <el-button @click="dialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="editHandler(scope.$index,scope.row.name)">確定</el-button>
-                  </span>
-
-              </el-dialog>
+              <el-button type="primary" size="mini" @click="dialogVisible123(scope.$index,scope.row)">編輯</el-button>
 
             <el-button
                       @click="deleteHandler(scope.$index,result)" type="primary" size="mini">刪除
@@ -82,9 +62,35 @@
 
           </template>
           </el-table-column>
-
          </el-table>
+
     </div>
+          <div class="dialog">
+            <el-dialog
+                    title="編輯代辦事項"
+                    :visible.sync="dialogVisible"
+                    width="formLabelWidth"
+            >
+
+              <div>
+
+                <div class="edit" >Name: <el-input v-model="editDialog" :disabled="status !== 'first' ? true:false"></el-input></div>
+                <div class="edit" >Description: <el-input v-model="editdescription" style="height: 50px" :disabled="status !== 'first' ? true:false"></el-input></div>
+<!--                <div class="edit">Description:<input v-model="editdescription" type="text" style="height: 50px" :disabled="status === 'third' ? true:false"></div>-->
+              </div>
+
+              <span slot="footer" class="dialog-footer">
+                <div v-if="status === 'third'" disabled></div>
+                <div v-else>
+                    <el-button type="primary" @click="editHandler()">確定</el-button>
+                    <el-button @click="dialogVisible = false" >取消</el-button>
+                </div>
+
+              </span>
+
+            </el-dialog>
+          </div>
+
   </div>
 </template>
 
@@ -103,7 +109,9 @@ export default {
       result:[],
       editDialog:'',
       editdescription:'',
-        dialogVisible: false
+      dialogVisible: false,
+      input:"",
+      statusA:''
     };
   },
     created() {
@@ -116,8 +124,9 @@ export default {
       },
     computed:{
     filterStatus(){
+        // console.log(this.result)
       return this.result.filter(item=>{
-        return  item.status === this.status && item.name.toLowerCase().includes(this.match.toLowerCase())
+        return  item.status === this.status && item.name.includes(this.match)
       })
     }
   },
@@ -143,14 +152,14 @@ export default {
       })
     },
     deleteHandler(index){
-        
+        let target = this.result[index]
         if(this.todo !== null){
           if(confirm(`確定刪除?`)){
-            axios.delete('http://localhost:3000/todos/')
-            this.result.splice(index,1)
+            axios.delete('http://localhost:3000/todos/' + target.id)
             .then(()=>{
                   axios.get('http://localhost:3000/todos')
                   .then((res)=>{
+                      this.result.splice(index,1)
                     this.result = res.data
                   })
             }).catch((err)=>{
@@ -158,29 +167,39 @@ export default {
             })
             
           }
-
         }
     },
+      dialogVisible123(index,row){
+          this.dialogVisible = true
+          axios.get('http://localhost:3000/todos/'+ row.id)
+              .then((res)=>{
+                 this.editDialog = res.data.name
+                  this.editdescription = res.data.description
+                this.input = res.data.id
+                this.statusA = res.data.status
+              }).catch((err)=>{
+              console.log(err)
+          })
+      },
     editHandler(){
-      // this.edit = index
       this.dialogVisible = false
       if(this.editDialog || this.editdescription){
-          axios.put('http://localhost:3000/todos/1',{
-              name:this.editDialog,
+          axios.put('http://localhost:3000/todos/'+ this.input,{
+              name: this.editDialog,
               description:this.editdescription,
-              status:"first"
+              status:this.statusA
           })
           .then(()=>{
-              axios.get('http://localhost:3000/todos')
-              .then((res)=>{
-                  this.result = res.data
-              })
+            axios.get('http://localhost:3000/todos/')
+            .then((res)=>{
+              console.log(res)
+              this.result = res.data
+            })
           }).catch((err)=>{
               console.log(err)
           })
-          
-      }
 
+      }
       this.$nextTick(() => {
         this.$refs.autofocus.focus()
       })
@@ -195,12 +214,16 @@ export default {
       this.editdescription = null
     },
     complete(selection,row){
-      if(row.status === "third"){
-        row.status = "first"
-      }
-    else{
-      row.status = "third"
-        this.checked = false
+      // console.log(row.id)
+      if(row.status === "first" || row.status === "second"){
+          axios.put('http://localhost:3000/todos/'+ row.id,{
+              name:row.name,
+              description:row.description || "",
+              status:"third"
+          })
+          .then((res)=>{
+              row.status = res.data.status
+          })
       }
     },
     startHandler(selection,row){
@@ -213,11 +236,14 @@ export default {
     },
     searchHandler(){
       console.log(1)
-     this.match = this.search
-    },
-      // dialogVisible(){
-      //
-      // }
+        let pattern = new RegExp("^[\u4e00-\u9fa5_A-z0-9]+$")
+        if(pattern.test(this.search))
+        {this.match = this.search
+           }
+        else {
+            return this.match = ""
+        }
+    }
   },
 };
 </script>
@@ -254,5 +280,23 @@ export default {
   .input:focus {
     border-color: #409EFF;
     outline: 0;
+  }
+
+  /*.el-dialog{*/
+  /*  height: 250px;*/
+  /*  display: flex;*/
+  /*  flex-direction: column;*/
+  /*  align-content: space-around;*/
+  /*}*/
+  .edit{
+    display: flex;
+    /*-webkit-appearance: none;*/
+    background-color: #FFF;
+    color: #606266;
+    /*display: inline-blo/ck;*/
+    font-size: inherit;
+    height: 40px;
+    line-height: 32px;
+    padding: 0 15px;
   }
 </style>
